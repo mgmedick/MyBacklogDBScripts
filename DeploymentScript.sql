@@ -32,54 +32,77 @@ CREATE TABLE tbl_User_Setting(
 	PRIMARY KEY (UserID)	
 );
 
--- tbl_User_GameService
-DROP TABLE IF EXISTS tbl_User_GameService;
+-- tbl_UserAccount
+DROP TABLE IF EXISTS tbl_UserAccount;
 
-CREATE TABLE tbl_User_GameService(
+CREATE TABLE tbl_UserAccount(
 	ID int NOT NULL AUTO_INCREMENT,
 	UserID int NOT NULL,
-	GameServiceID INT NOT NULL,
+	AccountTypeID INT NOT NULL,
+	AccountUserID varchar (800) NULL,
+	AccountUserHash varchar (800) NULL,		
+	ImportLastRunDate datetime NULL,
+	CreatedDate datetime NOT NULL,	
+	ModifiedDate datetime NULL,		
 	PRIMARY KEY (ID)	
 );
 
--- tbl_DefaultGameList
-DROP TABLE IF EXISTS tbl_DefaultGameList;
+-- tbl_UserAccount_Token
+DROP TABLE IF EXISTS tbl_UserAccount_Token;
 
-CREATE TABLE tbl_DefaultGameList 
+CREATE TABLE tbl_UserAccount_Token(
+	ID int NOT NULL AUTO_INCREMENT,
+	UserAccountID int NOT NULL,
+	TokenTypeID INT NOT NULL,
+	Token varchar (5000) NOT NULL,
+	IssuedDate datetime NULL,	
+	ExpireDate datetime NULL,
+	PRIMARY KEY (ID)	
+);
+
+-- tbl_UserList
+DROP TABLE IF EXISTS tbl_UserList;
+
+CREATE TABLE tbl_UserList 
+( 
+	ID int NOT NULL AUTO_INCREMENT,
+	UserID int NOT NULL,
+    Name varchar (100) NOT NULL,
+	DefaultListID int NULL,
+	AccountTypeID int NULL,	
+    SortOrder int NULL,
+    Active bit NOT NULL,
+	Deleted bit NOT NULL,
+	CreatedDate datetime NOT NULL,	
+	ModifiedDate datetime NULL,		
+    PRIMARY KEY (ID)      
+);
+
+-- tbl_UserList_Game
+DROP TABLE IF EXISTS tbl_UserList_Game;
+
+CREATE TABLE tbl_UserList_Game 
+( 
+	ID int NOT NULL AUTO_INCREMENT,
+	UserListID int NOT NULL,
+    GameID int NOT NULL,
+    PRIMARY KEY (ID)      
+);
+
+-- tbl_DefaultList
+DROP TABLE IF EXISTS tbl_DefaultList;
+
+CREATE TABLE tbl_DefaultList 
 ( 
 	ID int NOT NULL,
     Name varchar (100) NOT NULL,
     PRIMARY KEY (ID)      
 );
 
+-- tbl_AccountType
+DROP TABLE IF EXISTS tbl_AccountType;
 
--- tbl_UserGameList
-DROP TABLE IF EXISTS tbl_UserGameList;
-
-CREATE TABLE tbl_UserGameList 
-( 
-	ID int NOT NULL AUTO_INCREMENT,
-	UserID int NOT NULL,
-    Name varchar (100) NOT NULL,
-	DefaultGameListID int NULL,
-    PRIMARY KEY (ID)      
-);
-
--- tbl_UserGameList_Game
-DROP TABLE IF EXISTS tbl_UserGameList_Game;
-
-CREATE TABLE tbl_UserGameList_Game 
-( 
-	ID int NOT NULL AUTO_INCREMENT,
-	UserGameListID int NOT NULL,
-    GameID int NOT NULL,
-    PRIMARY KEY (ID)      
-);
-
--- tbl_GameService
-DROP TABLE IF EXISTS tbl_GameService;
-
-CREATE TABLE tbl_GameService 
+CREATE TABLE tbl_AccountType 
 ( 
     ID int NOT NULL,
     Name varchar (25) NOT NULL,
@@ -92,9 +115,25 @@ DROP TABLE IF EXISTS tbl_Game;
 CREATE TABLE tbl_Game 
 ( 
 	ID int NOT NULL AUTO_INCREMENT,
-    Name varchar (100) NOT NULL,
-    CoverImagePath varchar(80) NULL,
+    Name varchar (800) NOT NULL,
+    ReleaseDate datetime NULL,
+    GameCategoryID int NOT NULL,
+    CoverImageUrl varchar (250) NULL,
+    CoverImagePath varchar(250) NULL,
+	CreatedDate datetime NOT NULL DEFAULT (UTC_TIMESTAMP),
+	ModifiedDate datetime NULL,    
     PRIMARY KEY (ID)      
+);
+CREATE INDEX IDX_tbl_Game_ReleaseDate ON tbl_Game (ReleaseDate);
+
+-- tbl_Game_IGDBID
+DROP TABLE IF EXISTS tbl_Game_IGDBID;
+
+CREATE TABLE tbl_Game_IGDBID
+( 
+	GameID int NOT NULL,
+	IGDBID int NOT NULL,
+    PRIMARY KEY (GameID)   	
 );
 
 -- tbl_Setting
@@ -130,60 +169,156 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_User AS
 	ua.CreatedDate,
 	ua.ModifiedBy,
 	ua.ModifiedDate,
-	ue.IsDarkTheme,
-	COALESCE(GameServiceIDs.Value, '') AS GameServiceIDs
+	ue.IsDarkTheme
     FROM tbl_User ua
 	LEFT JOIN tbl_User_Setting ue ON ue.UserID = ua.ID
- 	LEFT JOIN LATERAL (
-		SELECT GROUP_CONCAT(CONVERT(uc.GameServiceID,CHAR) ORDER BY uc.ID SEPARATOR ',') Value
-	    FROM tbl_User_GameService uc
-		WHERE uc.UserID = ua.ID
-	) GameServiceIDs ON TRUE
 	WHERE ua.Deleted = 0;
 
--- vw_UserGameList
-DROP VIEW IF EXISTS vw_UserGameList;
+-- vw_UserList
+DROP VIEW IF EXISTS vw_UserList;
 
-CREATE DEFINER=`root`@`localhost` VIEW vw_UserGameList AS
+CREATE DEFINER=`root`@`localhost` VIEW vw_UserList AS
 
     SELECT ul.ID,
 	ul.UserID,
 	ul.Name,
-	ul.DefaultGameListID,
+	ul.DefaultListID,
 	COALESCE(GameIDs.Value, '') AS GameIDs
-    FROM tbl_UserGameList ul
+    FROM tbl_UserList ul
  	LEFT JOIN LATERAL (
 		SELECT GROUP_CONCAT(CONVERT(gl.GameID,CHAR) ORDER BY gl.ID SEPARATOR ',') Value
-	    FROM tbl_UserGameList_Game gl
-		WHERE gl.UserGameListID = ul.ID
+	    FROM tbl_UserList_Game gl
+		WHERE gl.UserListID = ul.ID
 	) GameIDs ON TRUE;
+
+-- vw_Game
+DROP VIEW IF EXISTS vw_Game;
+
+CREATE DEFINER=`root`@`localhost` VIEW vw_Game AS
+
+    SELECT g.ID,
+	g.Name,
+	COALESCE(g.CoverImagePath, DefaultGameCoverImagePath.Value) AS CoverImagePath,
+	g.ReleaseDate
+    FROM tbl_Game g
+ 	LEFT JOIN LATERAL (
+		SELECT ts.Str AS Value
+	    FROM tbl_Setting ts
+		WHERE ts.Name = 'DefaultGameCoverImagePath'
+		LIMIT 1
+	) DefaultGameCoverImagePath ON TRUE;
+
+-- vw_UserListGame
+DROP VIEW IF EXISTS vw_UserListGame;
+
+CREATE DEFINER=`root`@`localhost` VIEW vw_UserListGame AS
+
+    SELECT DISTINCT g.ID,
+	g.Name,
+	COALESCE(g.CoverImagePath, DefaultGameCoverImagePath.Value) AS CoverImagePath,
+	UserListIDs.Value AS UserListIDs,
+	ug.ID AS UserListGameID,
+	ul.ID AS UserListID,
+	ul.Active AS UserListActive
+    FROM tbl_Game g
+    JOIN tbl_UserList_Game ug ON ug.GameID = g.ID
+    JOIN tbl_UserList ul ON ul.ID = ug.UserListID
+ 	LEFT JOIN LATERAL (
+		SELECT ts.Str AS Value
+	    FROM tbl_Setting ts
+		WHERE ts.Name = 'DefaultGameCoverImagePath'
+		LIMIT 1
+	) DefaultGameCoverImagePath ON TRUE
+ 	LEFT JOIN LATERAL (
+		SELECT GROUP_CONCAT( DISTINCT CONVERT(gl1.UserListID,CHAR) ORDER BY gl1.UserListID SEPARATOR ',') Value
+	    FROM tbl_UserList_Game gl1
+	    JOIN tbl_UserList ul1 ON ul1.ID = gl1.UserListID AND ul1.UserID = ul.UserID
+		WHERE gl1.GameID = g.ID		
+	) UserListIDs ON TRUE;
+
+-- vw_UserAccount
+DROP VIEW IF EXISTS vw_UserAccount;
+
+CREATE DEFINER=`root`@`localhost` VIEW vw_UserAccount AS
+
+    SELECT ua.ID,
+    ua.UserID,
+    gt.ID AS AccountTypeID,
+    gt.Name AS AccountTypeName,       
+    ua.AccountUserID,
+    ua.AccountUserHash,
+	AccessToken.Token,
+	AccessToken.ExpireDate,
+	RefreshToken.Value AS RefreshToken,
+	ua.ImportLastRunDate,
+	ua.CreatedDate,
+	ua.ModifiedDate
+    FROM tbl_UserAccount ua
+    JOIN tbl_AccountType gt ON gt.ID = ua.AccountTypeID
+ 	LEFT JOIN LATERAL (
+		SELECT ut.Token, ut.ExpireDate
+	    FROM tbl_UserAccount_Token ut
+		WHERE ut.UserAccountID = ua.ID
+		AND ut.TokenTypeID = 1
+		LIMIT 1
+	) AccessToken ON TRUE
+ 	LEFT JOIN LATERAL (
+		SELECT ut.Token AS Value
+	    FROM tbl_UserAccount_Token ut
+		WHERE ut.UserAccountID = ua.ID
+		AND ut.TokenTypeID = 2
+		LIMIT 1
+	) RefreshToken ON TRUE;
 
 /*********************************************/
 -- create/alter procs
 /*********************************************/
--- GetUserGameListGames
-DROP PROCEDURE IF EXISTS GetUserGameListGames;
+-- GetUserListGames
+DROP PROCEDURE IF EXISTS GetUserListGames;
 
 DELIMITER $$
-CREATE DEFINER=`root`@`localhost` PROCEDURE GetUserGameListGames
+CREATE DEFINER=`root`@`localhost` PROCEDURE GetUserListGames
 (
-	IN UserGameListID INT
+	IN UserListID INT
 )
 BEGIN	
+
 	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
-    SELECT g.ID,
-	g.Name,
-	g.CoverImagePath,
-	UserGameListIDs.Value AS UserGameListIDs
-    FROM tbl_Game g
-    JOIN tbl_UserGameList_Game gl ON gl.GameID = g.ID
- 	LEFT JOIN LATERAL (
-		SELECT GROUP_CONCAT( DISTINCT CONVERT(gl1.UserGameListID,CHAR) ORDER BY gl1.UserGameListID SEPARATOR ',') Value
-	    FROM tbl_UserGameList_Game gl1
-		WHERE gl1.GameID = g.ID
-	) UserGameListIDs ON TRUE
-	WHERE gl.UserGameListID = UserGameListID;
+    SELECT ug.ID,
+	ug.Name,
+	ug.CoverImagePath,
+	ug.UserListIDs,
+	MIN(ug.UserListGameID) AS UserListGameID
+    FROM vw_UserListGame ug
+	WHERE (UserListID = 0 || ug.UserListID = UserListID)
+	AND ug.UserListActive = 1
+	GROUP BY ug.ID, ug.Name, ug.CoverImagePath, ug.UserListIDs;
+
+END $$
+DELIMITER ;
+
+-- GetAbout
+DROP PROCEDURE IF EXISTS GetAbout;
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE GetAbout()
+BEGIN	
+	DECLARE UserCount INT;
+
+	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+
+    SELECT COUNT(DISTINCT tu.ID)
+    FROM tbl_User tu
+	WHERE tu.Active = 1
+	INTO UserCount;
+
+    SELECT UserCount, g.Name AS GameName, ul.Name AS UserListName
+    FROM tbl_UserList_Game ug
+    JOIN tbl_Game g ON g.ID = ug.GameID
+    JOIN tbl_UserList ul ON ul.ID = ug.UserListID
+	ORDER BY ug.ID DESC
+	LIMIT 1;
 
 END $$
 DELIMITER ;
@@ -191,25 +326,31 @@ DELIMITER ;
 /*********************************************/
 -- populate tables
 /*********************************************/
-INSERT INTO tbl_DefaultGameList(ID, Name)
-SELECT 1, 'All Games'
+INSERT INTO tbl_Setting (Name, Str, Num, Dte)
+SELECT 'TwitchAcccessToken', NULL, NULL, NULL 
 UNION ALL
-SELECT 2, 'Backlog'
+SELECT 'TwitchAcccessTokenExpireDate', NULL, NULL, NULL 
 UNION ALL
-SELECT 3, 'Playing'
+SELECT 'GameLastImportDate', NULL, NULL, NULL 
 UNION ALL
-SELECT 4, 'Completed';
+SELECT 'ImportLastRunDate', NULL, NULL, NULL 
+UNION ALL
+SELECT 'DefaultGameCoverImagePath','/dist/images/nocover.jpg',NULL,NULL;
 
-INSERT INTO tbl_GameService(ID, Name)
+INSERT INTO tbl_DefaultList(ID, Name)
+SELECT 1, 'Backlog'
+UNION ALL
+SELECT 2, 'Playing'
+UNION ALL
+SELECT 3, 'Completed';
+
+INSERT INTO tbl_AccountType(ID, Name)
 SELECT 1, 'Steam'
 UNION ALL
 SELECT 2, 'Xbox';
 
-INSERT INTO tbl_Game (Name, CoverImagePath)
-SELECT Name, gl.CoverImagePath
-FROM speedrunapp.tbl_Game g
-JOIN speedrunapp.tbl_Game_Link gl ON gl.GameID = g.ID
-ORDER BY g.ID;
+
+
 
 
 
