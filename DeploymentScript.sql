@@ -69,7 +69,7 @@ CREATE TABLE tbl_UserList
 	UserID int NOT NULL,
     Name varchar (100) NOT NULL,
 	DefaultListID int NULL,
-	AccountTypeID int NULL,	
+	UserAccountID int NULL,	
     SortOrder int NULL,
     Active bit NOT NULL,
 	Deleted bit NOT NULL,
@@ -183,8 +183,12 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserList AS
 	ul.UserID,
 	ul.Name,
 	ul.DefaultListID,
-	COALESCE(GameIDs.Value, '') AS GameIDs
+	ua.ID AS UserAccountID,
+	ua.AccountTypeID,
+	ul.Active,
+	ul.SortOrder
     FROM tbl_UserList ul
+    LEFT JOIN tbl_UserAccount ua ON ua.ID = ul.UserAccountID
  	LEFT JOIN LATERAL (
 		SELECT GROUP_CONCAT(CONVERT(gl.GameID,CHAR) ORDER BY gl.ID SEPARATOR ',') Value
 	    FROM tbl_UserList_Game gl
@@ -219,7 +223,8 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserListGame AS
 	UserListIDs.Value AS UserListIDs,
 	ug.ID AS UserListGameID,
 	ul.ID AS UserListID,
-	ul.Active AS UserListActive
+	ul.Active AS UserListActive,
+	ul.UserID
     FROM tbl_Game g
     JOIN tbl_UserList_Game ug ON ug.GameID = g.ID
     JOIN tbl_UserList ul ON ul.ID = ug.UserListID
@@ -243,18 +248,19 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserAccount AS
 
     SELECT ua.ID,
     ua.UserID,
-    gt.ID AS AccountTypeID,
-    gt.Name AS AccountTypeName,       
+    ua.AccountTypeID,   
     ua.AccountUserID,
     ua.AccountUserHash,
 	AccessToken.Token,
 	AccessToken.ExpireDate,
 	RefreshToken.Value AS RefreshToken,
+	ul.ID AS UserListID,
+	ul.Name  AS UserListName,
 	ua.ImportLastRunDate,
 	ua.CreatedDate,
 	ua.ModifiedDate
     FROM tbl_UserAccount ua
-    JOIN tbl_AccountType gt ON gt.ID = ua.AccountTypeID
+    JOIN tbl_UserList ul ON ul.UserAccountID = ua.ID
  	LEFT JOIN LATERAL (
 		SELECT ut.Token, ut.ExpireDate
 	    FROM tbl_UserAccount_Token ut
