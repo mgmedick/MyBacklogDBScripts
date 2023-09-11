@@ -1,4 +1,4 @@
-USE GameStatsApp;
+USE GameStatsAppTest;
 -- ALTER DATABASE GameStatsApp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 /*********************************************/
@@ -285,6 +285,7 @@ DROP PROCEDURE IF EXISTS GetUserListGames;
 DELIMITER $$
 CREATE DEFINER=`root`@`localhost` PROCEDURE GetUserListGames
 (
+	IN UserID INT,
 	IN UserListID INT
 )
 BEGIN	
@@ -298,33 +299,30 @@ BEGIN
 	MIN(ug.UserListGameID) AS UserListGameID
     FROM vw_UserListGame ug
 	WHERE (UserListID = 0 || ug.UserListID = UserListID)
+	AND ug.UserID = UserID
 	AND ug.UserListActive = 1
 	GROUP BY ug.ID, ug.Name, ug.CoverImagePath, ug.UserListIDs;
 
 END $$
 DELIMITER ;
 
--- GetAbout
-DROP PROCEDURE IF EXISTS GetAbout;
+-- SearchGames
+DROP PROCEDURE IF EXISTS SearchGames;
 
 DELIMITER $$
-CREATE DEFINER=`root`@`localhost` PROCEDURE GetAbout()
+CREATE DEFINER=`root`@`localhost` PROCEDURE SearchGames
+(
+	IN SearchText VARCHAR(100)
+)
 BEGIN	
-	DECLARE UserCount INT;
 
 	SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
-    SELECT COUNT(DISTINCT tu.ID)
-    FROM tbl_User tu
-	WHERE tu.Active = 1
-	INTO UserCount;
-
-    SELECT UserCount, g.Name AS GameName, ul.Name AS UserListName
-    FROM tbl_UserList_Game ug
-    JOIN tbl_Game g ON g.ID = ug.GameID
-    JOIN tbl_UserList ul ON ul.ID = ug.UserListID
-	ORDER BY ug.ID DESC
-	LIMIT 1;
+	SELECT ID AS Value, Name AS Label, YEAR(ReleaseDate) AS LabelSecondary, CoverImagePath AS ImagePath
+	FROM vw_Game
+	WHERE Name LIKE CONCAT('%', SearchText, '%')
+	ORDER BY ReleaseDate, Name
+	LIMIT 20;
 
 END $$
 DELIMITER ;
