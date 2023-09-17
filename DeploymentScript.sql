@@ -202,7 +202,7 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_Game AS
 
     SELECT g.ID,
 	g.Name,
-	COALESCE(g.CoverImagePath, DefaultGameCoverImagePath.Value) AS CoverImagePath,
+	COALESCE(g.CoverImageUrl, DefaultGameCoverImagePath.Value) AS CoverImagePath,
 	g.ReleaseDate
     FROM tbl_Game g
  	LEFT JOIN LATERAL (
@@ -219,7 +219,7 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserListGame AS
 
     SELECT DISTINCT g.ID,
 	g.Name,
-	COALESCE(g.CoverImagePath, DefaultGameCoverImagePath.Value) AS CoverImagePath,
+	COALESCE(g.CoverImageUrl, DefaultGameCoverImagePath.Value) AS CoverImagePath,
 	UserListIDs.Value AS UserListIDs,
 	ug.ID AS UserListGameID,
 	ul.ID AS UserListID,
