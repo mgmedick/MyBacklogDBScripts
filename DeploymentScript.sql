@@ -1,4 +1,4 @@
-USE GameStatsAppTest;
+USE GameStatsApp;
 -- ALTER DATABASE GameStatsApp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 /*********************************************/
@@ -193,7 +193,8 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserList AS
 		SELECT GROUP_CONCAT(CONVERT(gl.GameID,CHAR) ORDER BY gl.ID SEPARATOR ',') Value
 	    FROM tbl_UserList_Game gl
 		WHERE gl.UserListID = ul.ID
-	) GameIDs ON TRUE;
+	) GameIDs ON TRUE
+	WHERE ul.Deleted = 0;
 
 -- vw_Game
 DROP VIEW IF EXISTS vw_Game;
@@ -327,6 +328,26 @@ BEGIN
 END $$
 DELIMITER ;
 
+USE GameStatsAppDemo;
+
+-- ResetDemoDB
+DROP PROCEDURE IF EXISTS ResetDemoDB;
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE ResetDemoDB()
+BEGIN
+	
+	IF (DATABASE() = 'gamestatsappdemo') THEN
+		TRUNCATE TABLE tbl_UserList_Game;
+		TRUNCATE TABLE tbl_UserList;
+		TRUNCATE TABLE tbl_UserAccount_Token;
+		TRUNCATE TABLE tbl_UserAccount;
+		TRUNCATE TABLE tbl_User_Setting;
+		TRUNCATE TABLE tbl_User;
+	END IF;
+
+END $$
+DELIMITER ;
 /*********************************************/
 -- populate tables
 /*********************************************/
