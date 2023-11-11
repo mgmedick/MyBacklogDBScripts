@@ -328,8 +328,6 @@ BEGIN
 END $$
 DELIMITER ;
 
-USE GameStatsAppDemo;
-
 -- ResetDemoDB
 DROP PROCEDURE IF EXISTS ResetDemoDB;
 
@@ -344,6 +342,16 @@ BEGIN
 		TRUNCATE TABLE tbl_UserAccount;
 		TRUNCATE TABLE tbl_User_Setting;
 		TRUNCATE TABLE tbl_User;
+		TRUNCATE TABLE tbl_Game_IGDBID;
+		TRUNCATE TABLE tbl_Game;
+	
+		INSERT INTO tbl_Game (ID, Name, ReleaseDate, GameCategoryID, CoverImageUrl, CoverImagePath, CreatedDate, ModifiedDate)
+		SELECT ID, Name, ReleaseDate, GameCategoryID, CoverImageUrl, CoverImagePath, CreatedDate, ModifiedDate
+		FROM GameStatsApp.tbl_Game;
+	
+		INSERT INTO tbl_Game_IGDBID (GameID, IGDBID)
+		SELECT GameID, IGDBID
+		FROM GameStatsApp.tbl_Game_IGDBID;
 	END IF;
 
 END $$
