@@ -86,6 +86,7 @@ CREATE TABLE tbl_UserList_Game
 	ID int NOT NULL AUTO_INCREMENT,
 	UserListID int NOT NULL,
     GameID int NOT NULL,
+    SortOrder int NULL,    
     PRIMARY KEY (ID)      
 );
 
@@ -115,13 +116,13 @@ DROP TABLE IF EXISTS tbl_Game;
 CREATE TABLE tbl_Game 
 ( 
 	ID int NOT NULL AUTO_INCREMENT,
-    Name varchar (800) NOT NULL,
+    Name varchar (255) NOT NULL,  
     ReleaseDate datetime NULL,
     GameCategoryID int NOT NULL,
     CoverImageUrl varchar (250) NULL,
     CoverImagePath varchar(250) NULL,
 	CreatedDate datetime NOT NULL DEFAULT (UTC_TIMESTAMP),
-	ModifiedDate datetime NULL,    
+	ModifiedDate datetime NULL,
     PRIMARY KEY (ID)      
 );
 CREATE INDEX IDX_tbl_Game_ReleaseDate ON tbl_Game (ReleaseDate);
@@ -204,6 +205,7 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_Game AS
     SELECT g.ID,
 	g.Name,
 	COALESCE(g.CoverImageUrl, DefaultGameCoverImagePath.Value) AS CoverImagePath,
+	g.GameCategoryID,
 	g.ReleaseDate
     FROM tbl_Game g
  	LEFT JOIN LATERAL (
@@ -225,7 +227,8 @@ CREATE DEFINER=`root`@`localhost` VIEW vw_UserListGame AS
 	ug.ID AS UserListGameID,
 	ul.ID AS UserListID,
 	ul.Active AS UserListActive,
-	ul.UserID
+	ul.UserID,
+	COALESCE(ug.SortOrder, ug.ID) AS SortOrder
     FROM tbl_Game g
     JOIN tbl_UserList_Game ug ON ug.GameID = g.ID
     JOIN tbl_UserList ul ON ul.ID = ug.UserListID
@@ -297,7 +300,8 @@ BEGIN
 	ug.Name,
 	ug.CoverImagePath,
 	ug.UserListIDs,
-	MIN(ug.UserListGameID) AS UserListGameID
+	MIN(ug.UserListGameID) AS UserListGameID,
+	MIN(COALESCE(ug.SortOrder, ug.ID)) AS SortOrder
     FROM vw_UserListGame ug
 	WHERE (UserListID = 0 || ug.UserListID = UserListID)
 	AND ug.UserID = UserID
